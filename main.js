@@ -139,11 +139,9 @@ class Daka {
       const {username, password} = this.config;
       await username_input.type(username);
       await password_input.type(password);
-      // FIXME: this hangs up sometimes
-      await Promise.all([
-        btn.click(),
-        null // page.waitForNavigation(),
-      ]);
+      await btn.click();
+      // await page.waitForNavigation();
+      // Doing this hangs up sometimes, and using waitForSelector should be adequate
     }
 
     console.log('navigated')
@@ -245,29 +243,40 @@ class Daka {
   }
 }
 
-if (require.main === module) {
-  (async () => {
-    const config = await load_json('config.json');
-    const io = config.hang && readline.createInterface({
-      input: process.stdin,
-      output: process.stdout
-    });
-    const s = await Daka.make(config);
-    let err = false;
-    try {
-      const res = await s.work();
-      console.log(JSON.stringify(res));
-    } catch (e) {
-      console.error(String(e));
-      err = true;
-    } finally {
-      if (io) {
-        await new Promise(resolve => io.question('done\n', resolve));
-        io.close();
-      }
-      await s.drop();
+async function main() {
+  const config = await load_json('config.json');
+  const io = config.hang && readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  let s;
+  try {
+    s = await Daka.make(config);
+  } catch (e) {
+    console.error('Failed to create browser:', e)
+    process.exit(1)
+  }
+  let err = false;
+  try {
+    const res = await s.work();
+    console.log(JSON.stringify(res));
+  } catch (e) {
+    console.error('Worker failed:', e);
+    err = true;
+  } finally {
+    if (io) {
+      await new Promise(resolve => io.question('done\n', resolve));
+      io.close();
     }
-    if (err)
-      process.exit(1);
-  })();
+    await s.drop();
+  }
+  if (err)
+    process.exit(1);
+}
+
+if (require.main === module) {
+  main().catch(e => {
+    console.error(e)
+    process.exit(1)
+  })
 }
