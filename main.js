@@ -15,6 +15,25 @@ function dump_json(path, data) {
   return fsPromises.writeFile(path, JSON.stringify(data, null, 2));
 }
 
+let cookie_cache;
+
+async function get_cached_cookies(user) {
+  if (!cookie_cache) {
+    try {
+      cookie_cache = await load_json('cookies.json');
+    } catch (e) {
+      cookie_cache = {};
+      return undefined;
+    }
+  }
+  return cookie_cache[user];
+}
+
+function save_cached_cookies(user, cookies) {
+  cookie_cache[user] = cookies;
+  return dump_json('cookies.json', cookie_cache);
+}
+
 function normalized_province(s) {
   return s[s.length - 1] === '省' ? s : s + '省';
 }
@@ -63,14 +82,14 @@ class Daka {
       page = await browser.newPage();
     }
     console.log('loading cookies');
-    let cookies;
-    try {
-      cookies = await load_json('cookies.json');
-    } catch (e) {
-      console.log('no cookies file, login first');
-    }
+    const {username} = config;
+    const cookies = await get_cached_cookies(username);
+
     if (cookies)
       await page.setCookie(...cookies);
+    else
+      console.log(`no cookies cached for ${username}, logging in first`);
+
     return new Daka({browser, page, config});
   }
 
@@ -238,7 +257,7 @@ class Daka {
     const cookies = await this.page.cookies();
     await Promise.all([
       this.browser.close(),
-      dump_json('cookies.json', cookies)
+      save_cached_cookies(this.config.username, cookies)
     ]);
   }
 }
