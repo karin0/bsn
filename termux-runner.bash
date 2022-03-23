@@ -1,16 +1,26 @@
+#!/usr/bin/bash
+
+# This is expected to run in a Termux proot distro. For use in native Termux
+# (if you have a working puppeteer), use the specific shebang:
 #!/data/data/com.termux/files/usr/bin/bash
 
-echo "bsn runner started: $(date)"
 set -o pipefail
+
+echo "bsn runner started: $(date)"
 cd "$(dirname "$0")" || exit 1
 
 exec 5>&1
 out=$(timeout -v 600 node main.js 2>&1 | tee >(cat - >&5))
-if [ $? -eq 0 ]; then
-  termux-notification -t "bsn ok" -c "$(echo "$out" | tail -n1)"
-  termux-vibrate -d 1000
+res=$?
+if [ $res -eq 0 ]; then
+  title="bsn ok"
+  vib=1000
 else
-  termux-notification -t "bsn error" -c "$out"
-  termux-vibrate -d 2000
-  exit 2
+  title="bsn error"
+  vib=2000
 fi
+
+termux-notification -t "$title" -c "$(echo "$out" | tail -n1)" \
+  --action="termux-dialog confirm -t '$title' -i '$out'"
+termux-vibrate -d $vib
+exit $res
