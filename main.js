@@ -1,6 +1,7 @@
 const readline = require('readline');
 const fsPromises = require('fs').promises;
 const puppeteer = require('puppeteer');
+const { lutimes } = require('fs');
 const axios = require('axios').default;
 
 const index_url = 'https://app.buaa.edu.cn/site/buaaStudentNcov/index';
@@ -150,8 +151,13 @@ class Daka {
 
     const old_info_fut = new Promise(resolve => {
       page.on('response', async res => {
-        if (res.url().includes('get-info'))
-          resolve(await res.json());
+        if (res.url().includes('get-info')) {
+          try {
+            resolve(await res.json());
+          } catch (e) {
+            // preflight
+          }
+        }
       });
     });
 
@@ -212,7 +218,13 @@ class Daka {
         const url = res.url();
         if (!url.includes('regeo'))
           return;
-        const s = await res.text();
+
+        let s;
+        try {
+          s = await res.text();
+        } catch (e) {
+          return;  // preflight
+        }
         const p = s.indexOf('(');
         const q = s.lastIndexOf(')');
         const data = JSON.parse(s.substring(p + 1, q));
