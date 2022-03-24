@@ -63,9 +63,13 @@ async function make_pages(options, timeout = 3000) {
 }
 
 function put_day_info(info) {
-  const {date} = info;
-  const geo = JSON.parse(info.geo_api_info);
-  console.log(`${date}: ${geo.formattedAddress} (lng=${geo.position.lng}, lat=${geo.position.lat})`);
+  try {
+    const {date} = info;
+    const geo = JSON.parse(info.geo_api_info);
+    console.log(`${date}: ${geo.formattedAddress} (lng=${geo.position.lng}, lat=${geo.position.lat})`);
+  } catch (e) {
+    // Be robust of info specs
+  }
 }
 
 class Daka {
@@ -193,9 +197,11 @@ class Daka {
       // Doing this hangs up sometimes, and using waitForSelector should be adequate
     }
 
-    const old_info = await old_info_fut;
-    put_day_info(old_info.d.info);
-    put_day_info(old_info.d.oldInfo);
+    const {d: info} = await old_info_fut;
+    if (info) {
+      put_day_info(info.info);
+      put_day_info(info.oldInfo);
+    }
 
     const geo = await page.waitForSelector(
       'div[name="szdd"] div[name="area"] .title-input input',
