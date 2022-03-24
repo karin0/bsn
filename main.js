@@ -1,7 +1,6 @@
 const readline = require('readline');
 const fsPromises = require('fs').promises;
 const puppeteer = require('puppeteer');
-const { lutimes } = require('fs');
 const axios = require('axios').default;
 
 const index_url = 'https://app.buaa.edu.cn/site/buaaStudentNcov/index';
