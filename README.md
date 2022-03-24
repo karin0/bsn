@@ -21,7 +21,7 @@ $ export PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable  # your Chromiu
 
 Otherwise, one will be downloaded automatically during the installation.
 
-```
+```shell
 $ npm install
 $ cp config.example.json config.json
 $ vi config.json  # Fill with your information
@@ -29,7 +29,7 @@ $ vi config.json  # Fill with your information
 
 `config.json` must be present in the working directory. At the first run, a new file `cookies.json` will be created for caching the login cookies. **Please keep the two files confidential.**
 
-```
+```shell
 $ node main.js
 ```
 
