@@ -35,12 +35,14 @@ function save_cached_cookies(user, cookies) {
 }
 
 function normalized_province(s) {
-  return s[s.length - 1] === '省' ? s : s + '省';
+  while (s[s.length - 1] === '省' || s[s.length - 1] === '市')
+    s = s.slice(0, -1);
+  return s;
 }
 
 async function get_ip_province() {
   const res = await axios.get('http://ip-api.com/json?lang=zh-CN');
-  return normalized_prmovince(res.data.regionName);
+  return normalized_province(res.data.regionName);
 }
 
 async function make_pages(options, timeout = 3000) {
@@ -58,6 +60,12 @@ async function make_pages(options, timeout = 3000) {
     browser.close();
     timeout *= 2;
   }
+}
+
+function put_day_info(info) {
+  const {date} = info;
+  const geo = JSON.parse(info.geo_api_info);
+  console.log(`${date}: ${geo.formattedAddress} (lng=${geo.position.lng}, lat=${geo.position.lat})`);
 }
 
 class Daka {
@@ -100,34 +108,51 @@ class Daka {
       page.setDefaultTimeout(timeout);
 
     const {longitude: lng, latitude: lat} = config;
-    const loc_data = `({"info":"LOCATE_SUCCESS","status":1,"lng":"${lng}","lat":"${lat}"});`;
+    const overwrite_position = lng && lat;
+    if (!overwrite_position)
+      console.warn('no position configured, using original geolocation');
 
     await page.setRequestInterception(true);
-    page.on('request', req => {
+    page.on('request', async req => {
       const url = req.url();
-      if (url.includes('ipLocat')) {
-        console.log('Overriding iploc');
+      if (url.includes('ipLocation')) {
+        if (!overwrite_position)
+          return req.continue();
         const p = url.indexOf('jsonp_');
         let q = url.indexOf('&', p);
         if (q < 0)
           q = url.length;
-        req.respond({
+        const data = `({"info":"LOCATE_SUCCESS","status":1,"lng":"${lng}","lat":"${lat}"});`;
+        return req.respond({
           status: 200,
           headers: {'Allow-Control-Allow-Origin': '*'},
-          body: url.substring(p, q) + loc_data
+          body: url.substring(p, q) + data
         });
-      } else if (url.includes('save-geo-error')) {
-        console.log('Blocking save-geo-error', url);
-        req.abort();
-      } else if (url.includes(amap_host)) {
-        if (url.includes('/modules?') || url.includes('/maps?'))
-          req.continue();
-        else {
-          console.log('Blocking amap api', url);
-          req.abort();
+      }
+      if (url.includes('regeo')) {
+        if (config.shifted || !overwrite_position) {
+          const unshifted = url.match(/location=([0-9\.]+,[0-9\.]+)/)[1];
+          console.log('position:', unshifted);
+          return req.continue();
         }
-      } else
-        req.continue();
+        const new_url = url.replace(/location=[0-9\.]+,[0-9\.]+/, `location=${lng},${lat}`);
+        return req.continue({url: new_url});
+      }
+      if (url.includes('save-geo-error'))
+        return req.abort();
+      if (url.includes(amap_host)) {
+        if (url.includes('/modules?') || url.includes('/maps?'))
+          return req.continue();
+        return req.abort();
+      }
+      return req.continue();
+    });
+
+    const old_info_fut = new Promise(resolve => {
+      page.on('response', async res => {
+        if (res.url().includes('get-info'))
+          resolve(await res.json());
+      });
     });
 
     function get_elem_text(elem) {
@@ -163,19 +188,17 @@ class Daka {
       // Doing this hangs up sometimes, and using waitForSelector should be adequate
     }
 
-    console.log('navigated')
+    const old_info = await old_info_fut;
+    put_day_info(old_info.d.info);
+    put_day_info(old_info.d.oldInfo);
+
     const geo = await page.waitForSelector(
       'div[name="szdd"] div[name="area"] .title-input input',
       {visible: true}
     );
-
     const submit = await page.$('div.sub-info');
     const status = await get_elem_text(submit);
-    console.log('status', status);
-    if (status.includes('已提交'))
-      return {status};
-    if (status.includes('未到'))
-      throw new Error('status: ' + status);
+    console.log('status:', status);
 
     const expected_province_fut = config.disable_province_check ? undefined : get_ip_province();
 
@@ -196,10 +219,11 @@ class Daka {
           province = normalized_province(province);
           if (expected_province !== province)
             throw new Error(`mismatched province: ${province} (IP is from ${expected_province})`);
+          console.log('province:', province)
         }
         const addr = data.regeocode.formatted_address;
         if (addr) {
-          console.log('regeo addr: ' + addr);
+          console.log('resolved addr: ' + addr);
           resolve(addr);
         } else
           reject('bad regeo: ' + s);
@@ -217,12 +241,17 @@ class Daka {
       await opt.click();
     }
 
+    console.log('waiting for geolocation')
     await geo.click();
-
     await page.waitForSelector('.loadEffect', {visible: true});
     await page.waitForSelector('.loadEffect', {hidden: true});
+    const address = await addr_fut;
 
-    await addr_fut;
+    if (status.includes('未到'))
+      throw new Error('status: ' + status);
+    if (status.includes('已提交'))
+      return {status};
+
     await submit.click();
 
     const box = await Promise.race([
@@ -250,7 +279,7 @@ class Daka {
     console.log('result', res);
     if (!res.includes('提交信息成功'))
       throw new Error('result: ' + res);
-    return {status, message: msg, result: res, address: address[0]};
+    return {status, message: msg, result: res, address};
   }
 
   async drop() {
@@ -295,7 +324,7 @@ async function main() {
 
 if (require.main === module) {
   main().catch(e => {
-    console.error(e)
-    process.exit(1)
+    console.error(e);
+    process.exit(1);
   })
 }
