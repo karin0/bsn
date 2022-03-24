@@ -200,6 +200,11 @@ class Daka {
     const status = await get_elem_text(submit);
     console.log('status:', status);
 
+    if (status.includes('未到'))
+      throw new Error('status: ' + status);
+    if (status.includes('已提交'))
+      return {status};
+
     const expected_province_fut = config.disable_province_check ? undefined : get_ip_province();
 
     const addr_fut = new Promise((resolve, reject) => {
@@ -246,11 +251,6 @@ class Daka {
     await page.waitForSelector('.loadEffect', {visible: true});
     await page.waitForSelector('.loadEffect', {hidden: true});
     const address = await addr_fut;
-
-    if (status.includes('未到'))
-      throw new Error('status: ' + status);
-    if (status.includes('已提交'))
-      return {status};
 
     await submit.click();
 
