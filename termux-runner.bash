@@ -1,10 +1,7 @@
 #!/usr/bin/bash
 
-# This is expected to run in a Termux proot distro. For use in native Termux
-# (if you have a working puppeteer), use the specific shebang:
-#!/data/data/com.termux/files/usr/bin/bash
-
 set -o pipefail
+export PATH=$PATH:/data/data/com.termux/files/usr/bin
 
 echo "bsn runner started: $(date)"
 cd "$(dirname "$0")" || exit 1
