@@ -13,7 +13,7 @@ This implementation relys only on the DOM structure of the page, trying to be ag
 
 ## Getting Started
 
-To use with your own Chromium/Chrome installation, export the [environment variables](https://github.com/puppeteer/puppeteer/blob/v13.5.1/docs/api.md#environment-variables):
+To use with your custom Chromium/Chrome installation, export the [environment variables](https://github.com/puppeteer/puppeteer/blob/v13.5.1/docs/api.md#environment-variables) before `npm install`:
 
 ```shell
 $ export PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable  # your Chromium/Chrome executable
@@ -40,23 +40,22 @@ $ node main.js
 - `username`: string
 - `password`: string
 
-These available fields are optional:
+The optional fields are below:
 
 - `longitude`: string
 - `latitude`: string
   - Your position in GCJ-02. If unspecified, the original AMap geolocation will be used, which can be slow and often fails.
+- `check_on_campus`: boolean, defaults to `false`
+  - Explicitly click the answer to the first question. Use this if simply inheriting fails to submit (usually when not on campus).
+- `timeout`: number, defaults to `30000`
+  - Timeout before waiting for page elements, in milliseconds.
 - `browser`: object
   - Passed to [puppeteer.launch](https://github.com/puppeteer/puppeteer/blob/v13.5.1/docs/api.md#puppeteerlaunchoptions), useful for specifying `executablePath` of Chromium.
 - `dry`: boolean, defaults to `false`
   - Stop before clicking the final submit button. Useful for checking the actual address of your given position.
 - `hang`: boolean, defaults to `false`
-  - Wait for signal rather than close the browser immediately after finished. Useful with `browser.headless` set to `false`.
-- `on_campus`: boolean
-  - Answer to the first question, `true` means Yes. Specify this explicitly if simply inheriting fails to submit.
-- `timeout`: number, defaults to `30000`
-  - Timeout before waiting for page elements, in milliseconds.
+  - Wait for signals rather than close the browser immediately after finished. Useful for debugging with `browser.headless` set to `false`.
 - `shifted`: boolean, defaults to `false`
-  - If YKWYAD.
 
 ## For Termux (Android)
 

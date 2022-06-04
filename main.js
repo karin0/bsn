@@ -31,6 +31,7 @@ async function get_cached_cookies(user) {
 
 function save_cached_cookies(user, cookies) {
   cookie_cache[user] = cookies;
+  console.log('saving cookies to cookies.json');
   return dump_json('cookies.json', cookie_cache);
 }
 
@@ -77,6 +78,7 @@ class Daka {
     this.browser = browser;
     this.page = page;
     this.config = config;
+    this.save_cookies_fut = null;
   }
 
   static async make(config) {
@@ -153,15 +155,17 @@ class Daka {
     });
 
     const old_info_fut = new Promise(resolve => {
-      page.on('response', async res => {
+      const handler = async res => {
         if (res.url().includes('get-info')) {
           try {
             resolve(await res.json());
+            page.off('response', handler);
           } catch (e) {
             // preflight
           }
         }
-      });
+      };
+      page.on('response', handler);
     });
 
     function get_elem_text(elem) {
@@ -211,10 +215,17 @@ class Daka {
     const status = await get_elem_text(submit);
     console.log('status:', status);
 
-    if (status.includes('未到'))
-      throw new Error('status: ' + status);
-    if (status.includes('已提交'))
-      return {status};
+    this.save_cookies_fut = (async () => {
+      const cookies = await page.cookies();
+      await save_cached_cookies(config.username, cookies)
+    })();
+
+    if (config.skip_checks !== true) {
+      if (status.includes('未到'))
+        throw new Error('status: ' + status);
+      if (status.includes('已提交'))
+        return {status};
+    }
 
     const expected_province_fut = config.disable_province_check ? undefined : get_ip_province();
 
@@ -252,15 +263,29 @@ class Daka {
       });
     });
 
-    const {on_campus} = config;
-    if (typeof on_campus === 'boolean') {
+    if (config.check_on_campus) {
       const opts = await page.$$('div[name="sfzs"] .warp-list-choose > div');
-      const opt = opts[on_campus ? 0 : 1];
-      const text = await get_elem_text(opt);
-      if (!text.startsWith(on_campus ? '是' : '否'))
-        throw Error(`unexpected prompt text ${text} for on_campus ${on_campus}`);
-      console.log('clicking ' + text);
-      await opt.click();
+      if (opts.length !== 2)
+        throw Error(`unexpected length of on_campus options: ${opts.length}`);
+      let clicked = false;
+      for (let i = 0; i < 2; ++i) {
+        const opt = opts[i];
+        const text = await get_elem_text(opt);
+        const expected_prefix = i ? '否' : '是';
+        if (!text.startsWith(expected_prefix))
+          throw Error(`unexpected text ${text} for on_campus option ${i}`);
+        const radio = await opt.$('span');
+        const is_active = await radio.evaluate(e => e.classList.contains('active'));
+        if (is_active) {
+          if (clicked)
+            throw Error('on_campus double clicked');
+          console.log('on_campus:', i, text);
+          await opt.click();
+          clicked = true;
+        }
+      }
+      if (!clicked)
+        throw Error('on_campus not clicked');
     }
 
     console.log('waiting for geolocation')
@@ -300,10 +325,9 @@ class Daka {
   }
 
   async drop() {
-    const cookies = await this.page.cookies();
     await Promise.all([
       this.browser.close(),
-      save_cached_cookies(this.config.username, cookies)
+      this.save_cookies_fut
     ]);
   }
 }
