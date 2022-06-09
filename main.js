@@ -78,7 +78,6 @@ class Daka {
     this.browser = browser;
     this.page = page;
     this.config = config;
-    this.save_cookies_fut = null;
   }
 
   static async make(config) {
@@ -215,10 +214,7 @@ class Daka {
     const status = await get_elem_text(submit);
     console.log('status:', status);
 
-    this.save_cookies_fut = (async () => {
-      const cookies = await page.cookies();
-      await save_cached_cookies(config.username, cookies)
-    })();
+    await save_cached_cookies(config.username, await page.cookies());
 
     if (config.skip_checks !== true) {
       if (status.includes('未到'))
@@ -324,11 +320,8 @@ class Daka {
     return {status, message: msg, result: res, address};
   }
 
-  async drop() {
-    await Promise.all([
-      this.browser.close(),
-      this.save_cookies_fut
-    ]);
+  drop() {
+    return this.browser.close();
   }
 }
 
