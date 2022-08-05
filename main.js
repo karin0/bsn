@@ -41,9 +41,19 @@ function normalized_province(s) {
   return s;
 }
 
-async function get_ip_province() {
+async function get_ip_province_ipapi() {
   const res = await axios.get('http://ip-api.com/json?lang=zh-CN');
   return normalized_province(res.data.regionName);
+}
+
+async function get_ip_province() {
+  const key = process.env.QQ_LBS_API_KEY;
+  if (!key)
+    return await get_ip_province_ipapi();
+  const res = (await axios.get('https://apis.map.qq.com/ws/location/v1/ip?key=' + key)).data;
+  if (res.status !== 0)
+    throw new Error("ip api: " + JSON.stringify(res));
+  return normalized_province(res.result.ad_info.province);
 }
 
 async function make_pages(options, timeout = 3000) {
