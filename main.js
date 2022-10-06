@@ -1,7 +1,7 @@
 const readline = require('readline');
 const fsPromises = require('fs').promises;
 const puppeteer = require('puppeteer');
-const axios = require('axios').default;
+const axios = require('axios');
 
 const index_url = 'https://app.buaa.edu.cn/site/buaaStudentNcov/index';
 const amap_host = 'webapi.amap.com';
@@ -42,15 +42,20 @@ function normalized_province(s) {
 }
 
 async function get_ip_province_ipapi() {
+  console.warn('Falling back to ip-api.com. If this hangs, provide a qq_lbs_api_key or disable province check in config.');
   const res = await axios.get('http://ip-api.com/json?lang=zh-CN');
   return normalized_province(res.data.regionName);
 }
 
-async function get_ip_province() {
-  const key = process.env.QQ_LBS_API_KEY;
-  if (!key)
-    return await get_ip_province_ipapi();
-  const res = (await axios.get('https://apis.map.qq.com/ws/location/v1/ip?key=' + key)).data;
+async function get_ip_province(key) {
+  if (!key) {
+    key = process.env.QQ_LBS_API_KEY;
+    if (!key)
+      return await get_ip_province_ipapi();
+  }
+  const res = (await axios.get('https://apis.map.qq.com/ws/location/v1/ip', {
+    params: { key }
+  })).data;
   if (res.status !== 0)
     throw new Error("ip api: " + JSON.stringify(res));
   return normalized_province(res.result.ad_info.province);
@@ -233,7 +238,9 @@ class Daka {
         return {status};
     }
 
-    const expected_province_fut = config.disable_province_check ? undefined : get_ip_province();
+    const expected_province_fut = config.disable_province_check ?
+      undefined :
+      get_ip_province(config.qq_lbs_api_key);
 
     const addr_fut = new Promise((resolve, reject) => {
       page.on('response', async res => {
@@ -336,7 +343,18 @@ class Daka {
 }
 
 async function main() {
-  const config = await load_json('config.json');
+  let config = await load_json('config.json');
+  if (config.debug) {
+    config = {
+      browser: {
+        headless: false,
+      },
+      hang: true,
+      dry: true,
+      skip_checks: true,
+      ...config
+    };
+  }
   const io = config.hang && readline.createInterface({
     input: process.stdin,
     output: process.stdout
