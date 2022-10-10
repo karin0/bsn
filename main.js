@@ -221,6 +221,11 @@ class Daka {
       put_day_info(info.oldInfo);
     }
 
+    await page.waitForSelector(
+      'div[name="szdd"] div[name="area"] .title-input input',
+      {visible: true}
+    );
+    await new Promise(resolve => setTimeout(resolve, 100));
     const geo = await page.waitForSelector(
       'div[name="szdd"] div[name="area"] .title-input input',
       {visible: true}
