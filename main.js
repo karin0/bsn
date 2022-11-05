@@ -203,7 +203,7 @@ class Daka {
     let dom = await page.$('.buaaStudentNcov-bg');
     if (!dom) {
       console.log('logging in');
-      await page.waitForSelector('#app .btn', {visible: true});
+      await page.waitForSelector('#app .btn');
       const app = await page.$('#app');
       const [username_input, password_input] = await app.$$('.content input');
       const btn = await app.$('.btn');
@@ -223,12 +223,10 @@ class Daka {
 
     await page.waitForSelector(
       'div[name="szdd"] div[name="area"] .title-input input',
-      {visible: true}
     );
     await new Promise(resolve => setTimeout(resolve, 100));
     const geo = await page.waitForSelector(
       'div[name="szdd"] div[name="area"] .title-input input',
-      {visible: true}
     );
     const submit = await page.$('div.sub-info');
     const status = await get_elem_text(submit);
