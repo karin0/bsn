@@ -207,6 +207,21 @@ class Daka {
       page.on('response', handler);
     });
 
+    page.on('response', async res => {
+      const url = res.url();
+      if (url.includes('buaa.edu.cn/') && !url.includes('amap.')) {
+        let data;
+        try {
+          data = await res.json();
+        } catch (e) {
+          return;
+        }
+        const req = res.request();
+        console.log(`${req.method()} ${url}: ${req.postData()}`);
+        console.log(`${res.status()}: %j`, data);
+      }
+    })
+
     function get_elem_text(elem) {
       return page.evaluate(e => e.innerText, elem);
     }
