@@ -88,6 +88,24 @@ function put_day_info(info) {
   }
 }
 
+function parse_position(x) {
+  if (typeof x === 'object') {
+    const b = x[0];
+    const r = x[1] - x[0];
+    const k = Math.random();
+    const d = k * r;
+    x = (b + d).toFixed(6);
+    console.log(`${b} + ${d.toFixed(6)} (${(k * 100).toFixed(1)}% of ${r.toFixed(6)}) = ${x}`);
+  }
+  return x;
+}
+
+function random_wait() {
+  const t = Math.round(Math.random() * 4000);
+  console.log(`waiting for ${t} ms`);
+  return new Promise(resolve => setTimeout(resolve, t));
+}
+
 class Daka {
   constructor({browser, page, config}) {
     this.browser = browser;
@@ -127,16 +145,20 @@ class Daka {
     if (timeout)
       page.setDefaultTimeout(timeout);
 
-    const {longitude: lng, latitude: lat} = config;
-    const overwrite_position = lng && lat;
-    if (!overwrite_position)
+    let {longitude: lng, latitude: lat} = config;
+    if (lng && lat) {
+      lng = parse_position(lng);
+      lat = parse_position(lat);
+    } else {
+      lng = lat = null;
       console.warn('no position configured, using original geolocation');
+    }
 
     await page.setRequestInterception(true);
     page.on('request', async req => {
       const url = req.url();
       if (url.includes('ipLocation')) {
-        if (!overwrite_position)
+        if (lng == null)
           return req.continue();
         const p = url.indexOf('jsonp_');
         let q = url.indexOf('&', p);
@@ -150,7 +172,7 @@ class Daka {
         });
       }
       if (url.includes('regeo')) {
-        if (config.shifted || !overwrite_position) {
+        if (config.shifted || lng == null) {
           const unshifted = url.match(/location=([0-9\.]+,[0-9\.]+)/)[1];
           console.log('position:', unshifted);
           return req.continue();
@@ -158,11 +180,14 @@ class Daka {
         const new_url = url.replace(/location=[0-9\.]+,[0-9\.]+/, `location=${lng},${lat}`);
         return req.continue({url: new_url});
       }
-      if (url.includes('save-geo-error'))
+      if (url.includes('save-geo-error')) {
+        console.debug('blocking sge:', url);
         return req.abort();
+      }
       if (url.includes(amap_host)) {
         if (url.includes('/modules?') || url.includes('/maps?'))
           return req.continue();
+        console.debug('blocking amap:', url);
         return req.abort();
       }
       return req.continue();
@@ -208,11 +233,11 @@ class Daka {
       const [username_input, password_input] = await app.$$('.content input');
       const btn = await app.$('.btn');
       const {username, password} = this.config;
+      await random_wait();
       await username_input.type(username);
       await password_input.type(password);
+      await random_wait();
       await btn.click();
-      // await page.waitForNavigation();
-      // Doing this hangs up sometimes, and using waitForSelector should be adequate
     }
 
     const {d: info} = await old_info_fut;
@@ -273,7 +298,10 @@ class Daka {
         const addr = data.regeocode.formatted_address;
         if (addr) {
           console.log('resolved addr: ' + addr);
-          resolve(addr);
+          if (config.address_keyword && !addr.includes(config.address_keyword))
+            reject('address does not contain keyword: ' + config.address_keyword);
+          else
+            resolve(addr);
         } else
           reject('bad regeo: ' + s);
       });
@@ -304,12 +332,14 @@ class Daka {
         throw Error('on_campus not clicked');
     }
 
+    await random_wait();
     console.log('waiting for geolocation')
     await geo.click();
     await page.waitForSelector('.loadEffect', {visible: true});
     await page.waitForSelector('.loadEffect', {hidden: true});
     const address = await addr_fut;
 
+    await random_wait();
     await submit.click();
 
     const box = await Promise.race([
@@ -326,6 +356,7 @@ class Daka {
       throw new Error('message: ' + msg);
 
     const go = await box.$('.wapcf-btn-ok');
+    await random_wait();
 
     if (config.dry)
       return {status: 'dry'};
@@ -335,6 +366,7 @@ class Daka {
     const alert = await page.waitForSelector('div.alert', {visible: true});
     const res = await get_elem_text(alert);
     console.log('result', res);
+    await random_wait();
     if (!res.includes('提交信息成功'))
       throw new Error('result: ' + res);
     return {status, message: msg, result: res, address};
